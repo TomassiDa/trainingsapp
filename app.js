@@ -15,6 +15,20 @@
   // ---------- helpers ----------
   const app = document.getElementById('app');
   const DAYMAP = {}; DAYS.forEach(function (d) { DAYMAP[d.id] = d; });
+  DAYMAP.x = { id: 'x', label: 'Extra', name: 'Onderweg', color: '#B39DFF', blocks: [] };
+  // dag met eventueel gewisselde oefeningen (nieuw blok)
+  function dayDef(id) {
+    const base = DAYMAP[id]; const ov = settings.overrides || {};
+    return Object.assign({}, base, { blocks: base.blocks.map(function (b) {
+      return Object.assign({}, b, { groups: b.groups.map(function (g) {
+        return Object.assign({}, g, { items: g.items.map(function (x) { const o = ov[id + '.' + x.code]; return o ? Object.assign({}, x, { ex: o }) : x; }) });
+      }) });
+    }) });
+  }
+  function cur() { return active.custom || dayDef(active.day); }
+  function gold() { return settings.theme === 'golden'; }
+  function T(key, plain) { return gold() && GOLD[key] ? GOLD[key] : plain; }
+  function unitTxt(e, n) { return e.unit === 'sec' ? n + ' s' : n + ' reps'; }
   const NL_DAYS = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
   const NL_MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
   const NL_MON = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
@@ -77,7 +91,7 @@
     steps.forEach(function (s, i) { const n = steps[i + 1]; s.blockEnd = !n || n.bi !== s.bi; });
     return steps;
   }
-  function itemOf(step) { return DAYMAP[active.day].blocks[step.bi].groups[step.gi].items[step.ii]; }
+  function itemOf(step) { return cur().blocks[step.bi].groups[step.gi].items[step.ii]; }
 
   // ---------- geluid en scherm aan ----------
   let audio = null;
@@ -135,30 +149,46 @@
   }
 
   function nextDay() {
-    if (!log.length) return 'd1';
-    const last = log[log.length - 1].day;
+    const real = log.filter(function (x) { return x.day !== 'x'; });
+    if (!real.length) return 'd1';
+    const last = real[real.length - 1].day;
     return last === 'd1' ? 'd2' : 'd1';
   }
 
+  function newBlockDue() {
+    const wi = weekInfo(); const today = iso(new Date());
+    return wi.weeksTotal > 16 && !(settings.snoozeUntil && today < settings.snoozeUntil);
+  }
   function viewHome() {
     const now = new Date(); const wd = weekDots(); const year = now.getFullYear();
     const yearCount = log.filter(function (x) { return x.date.slice(0, 4) === String(year); }).length;
     const nd = DAYMAP[nextDay()];
     let resume = '';
     if (active) {
-      const d = DAYMAP[active.day];
+      const d = cur();
       resume = '<button class="card hl col" data-a="resume" style="text-align:left;width:100%"><div class="eyebrow" style="color:var(--accent)">Training bezig</div><h2>' + d.label + ' · ' + d.name + '</h2><div class="small muted">Tik om verder te gaan</div></button>';
     }
+    let nb = '';
+    if (!active && newBlockDue()) {
+      const blockLog = log.filter(function (x) { return settings.blockStart && x.date >= settings.blockStart; }).length;
+      nb = '<div class="card hl col" style="gap:12px"><div class="eyebrow" style="color:var(--accent)">Blok ' + (settings.blockNo || 1) + ' afgerond</div><h2>16 weken klaar. Tijd voor nieuwe oefeningen.</h2>' +
+        '<div class="small muted">Je lichaam is gewend aan dit schema. Er ligt een voorstel klaar. ' + blockLog + ' trainingen in dit blok.</div>' +
+        '<button class="btn" data-a="newblock">Bekijk voorstel</button><button class="btn ghost" data-a="snooze">Nog 4 weken met dit schema</button></div>';
+    }
+    const hello = gold() ? GOLD.hello : greet();
+    const quote = gold() ? '<div class="col" style="gap:6px;align-items:flex-start"><div class="redtag">Motivatie van de dag</div><div class="num" style="font-size:24px;line-height:1.1;text-transform:uppercase">' + GOLD.quotes[now.getDate() % GOLD.quotes.length] + '</div></div>' : '';
     return '' +
-      '<div class="col" style="gap:6px;margin-top:20px"><div class="eyebrow">' + NL_DAYS[now.getDay()] + ' ' + now.getDate() + ' ' + NL_MONTHS[now.getMonth()] + '</div><h1 style="font-size:44px">' + greet() + '</h1></div>' +
-      resume +
-      '<div class="card col" style="gap:12px"><div class="between"><div style="font-weight:600">Deze week</div><div class="small muted">' + wd.done + ' van 2-3 trainingen</div></div><div class="week">' + wd.html + '</div></div>' +
+      '<div class="col" style="gap:6px;margin-top:20px"><div class="eyebrow' + (gold() ? ' goldtxt' : '') + '">' + NL_DAYS[now.getDay()] + ' ' + now.getDate() + ' ' + NL_MONTHS[now.getMonth()] + '</div><h1 style="font-size:44px">' + hello + '</h1></div>' +
+      resume + nb +
+      '<div class="card col" style="gap:12px"><div class="between"><div style="font-weight:600">' + T('weekTitle', 'Deze week') + '</div><div class="small muted">' + wd.done + ' van 2-3 trainingen</div></div><div class="week">' + wd.html + '</div></div>' +
       '<div class="col" style="gap:12px">' +
-        '<button class="big" data-a="choose" style="background:var(--accent);color:#111315"><div class="col" style="gap:6px"><div class="t">Start training</div><div class="small" style="font-weight:500">Volgende: ' + nd.label + ' · ' + nd.name + '</div></div>' + ICON.play + '</button>' +
-        '<button class="big" data-a="overview" style="background:var(--s1)"><div class="col" style="gap:6px"><div class="t">Overzicht</div><div class="small muted">' + year + ' · ' + yearCount + (yearCount === 1 ? ' training' : ' trainingen') + '</div></div>' + ICON.cal + '</button>' +
+        '<button class="big main" data-a="choose"><div class="col" style="gap:6px"><div class="t">' + T('start', 'Start training') + '</div><div class="small" style="font-weight:600">Volgende: ' + nd.label + ' · ' + nd.name + '</div></div>' + ICON.play + '</button>' +
+        '<div class="grid2">' +
+        '<button class="tile" data-a="overview"><div class="t">' + T('overview', 'Overzicht') + '</div><div class="xs muted">' + year + ' · ' + yearCount + (yearCount === 1 ? ' training' : ' trainingen') + '</div></button>' +
+        '<button class="tile" data-a="away"><div class="t">' + T('away', 'Niet thuis, wel tijd') + '</div><div class="xs muted">Zonder materiaal</div></button>' +
+        '</div>' +
       '</div>' +
-      '<div class="grow"></div>' +
-      '<div class="legend"><div><span style="background:var(--accent)"></span>Dag 1</div><div><span style="background:var(--d2)"></span>Dag 2</div><div><span style="background:var(--d3)"></span>Dag 3</div></div>' +
+      '<div class="grow"></div>' + quote +
       '<button class="btn ghost" data-a="backup">Back-up en instellingen</button>';
   }
 
@@ -188,7 +218,7 @@
   }
 
   function viewDay() {
-    const d = DAYMAP[view.id]; const wi = weekInfo();
+    const d = dayDef(view.id); const wi = weekInfo();
     let blocks = '<div class="card between"><div style="font-weight:600">Warming-up</div><div class="small muted">8 min</div></div>';
     d.blocks.forEach(function (b) {
       let rows = '';
@@ -210,11 +240,12 @@
   }
 
   // ---------- training ----------
-  function startWorkout(dayId) {
+  function startWorkout(dayId, custom) {
     unlockAudio(); keepAwake();
     const wi = weekInfo();
     if (!settings.blockStart) { settings.blockStart = iso(new Date()); save(K.settings, settings); }
-    active = { day: dayId, startedAt: Date.now(), deload: wi.deload, week: wi.week, steps: buildSteps(DAYMAP[dayId], wi.deload), idx: 0, phase: 'warmup', warm: [], sets: [], restEnd: 0, restTotal: 0, val: null };
+    const deload = custom ? false : wi.deload;
+    active = { day: dayId, custom: custom || null, logDay: custom ? custom.logDay : dayId, startedAt: Date.now(), deload: deload, week: wi.week, steps: buildSteps(custom || dayDef(dayId), deload), idx: 0, phase: 'warmup', warm: [], sets: [], restEnd: 0, restTotal: 0, val: null };
     saveActive(); go({ name: 'workout' });
   }
 
@@ -223,35 +254,36 @@
   }
   function exProgress() {
     // balkje per oefening van de hele training
-    const day = DAYMAP[active.day]; const items = [];
+    const day = cur(); const items = [];
     day.blocks.forEach(function (b, bi) { b.groups.forEach(function (g, gi) { g.items.forEach(function (x, ii) { items.push(bi + '.' + gi + '.' + ii); }); }); });
-    const cur = active.steps[active.idx]; const curKey = cur ? cur.bi + '.' + cur.gi + '.' + cur.ii : '';
+    const cs = active.steps[active.idx]; const curKey = cs ? cs.bi + '.' + cs.gi + '.' + cs.ii : '';
     const doneKeys = {};
     active.steps.forEach(function (s, i) { if (i < active.idx && s.set === s.sets) doneKeys[s.bi + '.' + s.gi + '.' + s.ii] = 1; });
     return '<div class="progress" style="grid-template-columns:repeat(' + items.length + ',1fr)">' + items.map(function (k) { return '<div class="' + (doneKeys[k] ? 'on' : k === curKey ? 'now' : '') + '"></div>'; }).join('') + '</div>';
   }
   function stepLabel(step) {
-    const b = DAYMAP[active.day].blocks[step.bi];
+    const b = cur().blocks[step.bi];
     if (!step.superset) return b.name;
     const g = b.groups[step.gi]; const rounds = Math.max.apply(null, g.items.map(function (x) { return active.deload ? Math.ceil(x.sets / 2) : x.sets; }));
     return b.name.split(' · ')[0] + ' · Superset · ronde ' + step.set + ' van ' + rounds;
   }
 
+  function warmList() { return active.custom ? WARMUP.filter(function (w) { return w.name.indexOf('bar') < 0 && w.name.indexOf('eerste') < 0; }) : WARMUP; }
   function viewWarmup() {
-    const d = DAYMAP[active.day];
+    const d = cur();
     const doneN = active.warm.length;
     let rows = '';
-    WARMUP.forEach(function (w, i) {
+    warmList().forEach(function (w, i) {
       const done = active.warm.indexOf(i) >= 0;
       rows += '<button class="check' + (done ? ' done' : '') + '" data-a="warm" data-i="' + i + '"><span class="box">' + (done ? ICON.check : '') + '</span><span class="lbl grow">' + w.name + '</span><span class="small muted">' + w.amount + '</span></button>';
     });
     const first = EXERCISES[itemOf(active.steps[0]).ex].name.toLowerCase();
     rows = rows.replace('Lichte set van de eerste oefening', 'Lichte set ' + first);
     return topbar(d.label + ' · ' + d.name) +
-      '<div class="col" style="gap:4px"><div class="eyebrow">Stap 1</div><h1>Warming-up</h1><div class="muted">Tik af wat je gedaan hebt. ' + doneN + ' van ' + WARMUP.length + ' klaar.</div></div>' +
+      '<div class="col" style="gap:4px"><div class="eyebrow">Stap 1</div><h1>Warming-up</h1><div class="muted">Tik af wat je gedaan hebt. ' + doneN + ' van ' + warmList().length + ' klaar.</div></div>' +
       '<div class="col">' + rows + '</div>' +
       '<div class="grow"></div>' +
-      '<button class="btn" data-a="warmdone">Naar ' + DAYMAP[active.day].blocks[0].name.split(' · ')[0].replace('Blok', 'blok') + '</button>' +
+      '<button class="btn" data-a="warmdone">Naar ' + cur().blocks[0].name.split(' · ')[0].replace('Blok', 'blok') + '</button>' +
       '<button class="btn ghost" data-a="warmdone">Warming-up overslaan</button>';
   }
 
@@ -268,8 +300,9 @@
     if (!active.val || active.val.idx !== active.idx) { const p = prefill(step); active.val = { idx: active.idx, reps: p.reps, kg: p.kg }; saveActive(); }
     const p = prefill(step);
     let prev = 'Eerste keer';
-    if (p.last) prev = 'Vorige keer: ' + (e.unit === 'kg' ? kgTxt(p.last.set.kg) + ' kg × ' : '') + p.last.set.reps + (e.unit === 'kg' ? '' : ' reps');
-    const pills = '<span class="pill">' + item.reps + ' reps' + (e.perSide ? ' per kant' : '') + '</span>' +
+    if (p.last) prev = 'Vorige keer: ' + (e.unit === 'kg' ? kgTxt(p.last.set.kg) + ' kg × ' + p.last.set.reps : unitTxt(e, p.last.set.reps));
+    if (gold() && p.last) prev += '. Verpletter het.';
+    const pills = '<span class="pill">' + unitTxt(e, item.reps) + (e.perSide ? ' per kant' : '') + '</span>' +
       '<span class="pill">' + (e.unit === 'kg' ? kgTxt(item.kg) + ' kg' : 'Lichaamsgewicht') + '</span>' +
       (item.tempo ? '<span class="pill">Tempo ' + item.tempo + '</span>' : '');
     const next = active.steps[active.idx + 1];
@@ -278,16 +311,16 @@
       const nn = EXERCISES[itemOf(next).ex].name;
       after = step.blockEnd ? 'Daarna is dit blok klaar' : 'Daarna ' + step.rest + ' s rust, dan ' + itemOf(next).code + ' ' + nn + (next.set > 1 ? ' set ' + next.set : '');
     }
-    const kgStepper = e.unit === 'kg' ? '<div class="col" style="gap:6px"><div class="xs muted" style="font-weight:600">Gewicht (kg)</div><div class="stepper"><button data-a="kg" data-d="-1" aria-label="Lichter">−</button><div class="v">' + kgTxt(active.val.kg) + '</div><button data-a="kg" data-d="1" aria-label="Zwaarder">+</button></div></div>' : '';
+    const kgStepper = e.unit === 'kg' ? '<div class="col" style="gap:6px"><div class="xs muted" style="font-weight:600">' + T('weight', 'Gewicht (kg)') + '</div><div class="stepper"><button data-a="kg" data-d="-1" aria-label="Lichter">−</button><div class="v">' + kgTxt(active.val.kg) + '</div><button data-a="kg" data-d="1" aria-label="Zwaarder">+</button></div></div>' : '';
     return topbar(stepLabel(step)) + exProgress() +
       '<img class="exhero" src="img/' + e.img + '.jpg" alt="' + e.name + ': begin- en eindpositie">' +
       '<div class="col" style="gap:8px"><div class="row" style="align-items:baseline"><div class="num" style="font-size:20px;color:var(--accent)">' + item.code + '</div><h1 style="font-size:36px">' + e.name + '</h1></div>' +
       '<div class="row" style="flex-wrap:wrap;gap:8px">' + pills + '</div>' +
       '<div class="small muted" style="font-size:14px;line-height:1.4">' + e.cue + '</div></div>' +
       '<div class="card col" style="gap:12px"><div class="between"><div class="num" style="font-size:22px">Set ' + step.set + ' van ' + step.sets + '</div><div class="small muted">' + prev + '</div></div>' +
-      '<div class="' + (e.unit === 'kg' ? 'grid2' : 'col') + '"><div class="col" style="gap:6px"><div class="xs muted" style="font-weight:600">Reps</div><div class="stepper"><button data-a="reps" data-d="-1" aria-label="Rep minder">−</button><div class="v">' + active.val.reps + '</div><button data-a="reps" data-d="1" aria-label="Rep meer">+</button></div></div>' + kgStepper + '</div></div>' +
+      '<div class="' + (e.unit === 'kg' ? 'grid2' : 'col') + '"><div class="col" style="gap:6px"><div class="xs muted" style="font-weight:600">' + (e.unit === 'sec' ? 'Seconden' : 'Reps') + '</div><div class="stepper"><button data-a="reps" data-d="-1" aria-label="Minder">−</button><div class="v">' + active.val.reps + '</div><button data-a="reps" data-d="1" aria-label="Meer">+</button></div></div>' + kgStepper + '</div></div>' +
       '<div class="grow"></div>' +
-      '<button class="btn" data-a="setdone">Set klaar</button><div class="small muted" style="text-align:center;margin-top:-8px">' + after + '</div>';
+      '<button class="btn" data-a="setdone">' + T('setDone', 'Set klaar') + '</button><div class="small muted" style="text-align:center;margin-top:-8px">' + after + '</div>';
   }
 
   function diffBadge(rec) {
@@ -312,18 +345,18 @@
     const badge = diffBadge(rec);
     const next = active.steps[active.idx]; const ni = itemOf(next); const ne = EXERCISES[ni.ex];
     return topbar(stepLabel(next)) +
-      '<div class="card between"><div class="col" style="gap:2px"><div class="xs muted">Opgeslagen</div><div style="font-weight:600">' + re.name + ' · ' + (re.unit === 'kg' ? kgTxt(rec.kg) + ' kg × ' : '') + rec.reps + (re.unit === 'kg' ? '' : ' reps') + '</div></div>' + (badge ? '<span class="badge">' + badge + '</span>' : '') + '</div>' +
-      '<div class="col" style="align-items:center;gap:8px;padding-top:6px"><div class="eyebrow">Rust</div>' +
-      '<div class="ring"><svg width="250" height="250" viewBox="0 0 250 250" aria-hidden="true"><circle cx="125" cy="125" r="105" fill="none" stroke="#262A2F" stroke-width="14"/><circle id="ringc" cx="125" cy="125" r="105" fill="none" stroke="#C8F53C" stroke-width="14" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '" transform="rotate(-90 125 125)"/></svg>' +
+      '<div class="card between"><div class="col" style="gap:2px"><div class="xs muted">' + T('saved', 'Opgeslagen') + '</div><div style="font-weight:600">' + re.name + ' · ' + (re.unit === 'kg' ? kgTxt(rec.kg) + ' kg × ' + rec.reps : unitTxt(re, rec.reps)) + '</div></div>' + (badge ? '<span class="badge sticker">' + badge + (gold() ? ', monster' : '') + '</span>' : '') + '</div>' +
+      '<div class="col" style="align-items:center;gap:8px;padding-top:6px"><div class="eyebrow resttitle">' + T('rest', 'Rust') + '</div>' +
+      '<div class="ring"><svg width="250" height="250" viewBox="0 0 250 250" aria-hidden="true"><circle cx="125" cy="125" r="105" fill="none" style="stroke:var(--s2)" stroke-width="14"/><circle id="ringc" cx="125" cy="125" r="105" fill="none" style="stroke:var(--accent)" stroke-width="14" stroke-linecap="round" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '" transform="rotate(-90 125 125)"/></svg>' +
       '<div class="c"><div class="num" id="clock" role="timer" aria-live="off">' + mmss(left) + '</div><div class="small muted">van ' + mmss(active.restTotal) + '</div></div></div></div>' +
-      '<div class="grid2"><button class="btn sec" data-a="plus15">+15 s</button><button class="btn sec" data-a="skip">Overslaan</button></div>' +
+      '<div class="grid2"><button class="btn sec" data-a="plus15">+15 s' + (gold() ? '<div class="sub">' + GOLD.plus + '</div>' : '') + '</button><button class="btn sec" data-a="skip">Overslaan' + (gold() ? '<div class="sub">' + GOLD.skip + '</div>' : '') + '</button></div>' +
       '<div class="grow"></div>' +
-      '<div class="card row" style="padding:12px"><img src="img/' + ne.img + '.jpg" alt="" style="width:88px;height:60px;object-fit:cover;border-radius:10px"><div class="col" style="gap:2px"><div class="xs muted">Hierna</div><div style="font-weight:600">' + ni.code + ' ' + ne.name + '</div><div class="small muted">Set ' + next.set + ' van ' + next.sets + ' · ' + ni.reps + ' reps</div></div></div>' +
+      '<div class="card row" style="padding:12px"><img src="img/' + ne.img + '.jpg" alt="" style="width:88px;height:60px;object-fit:cover;border-radius:10px"><div class="col" style="gap:2px"><div class="xs nextlbl">' + T('next', 'Hierna') + '</div><div style="font-weight:600">' + ni.code + ' ' + ne.name + '</div><div class="small muted">Set ' + next.set + ' van ' + next.sets + ' · ' + unitTxt(ne, ni.reps) + '</div></div></div>' +
       '<div class="xs muted" style="text-align:center">Je hoort een piep als de rust voorbij is</div>';
   }
 
   function viewBlockDone() {
-    const prevStep = active.steps[active.idx - 1]; const b = DAYMAP[active.day].blocks[prevStep.bi];
+    const prevStep = active.steps[active.idx - 1]; const b = cur().blocks[prevStep.bi];
     let rows = ''; let ups = 0;
     b.groups.forEach(function (g) {
       g.items.forEach(function (x) {
@@ -331,26 +364,26 @@
         const mine = active.sets.filter(function (s) { return s.ex === x.ex; });
         let boxes = '';
         mine.forEach(function (s) { const up = !!s.up; if (up) ups++; boxes += '<div class="' + (up ? 'up' : '') + '">' + s.reps + '</div>'; });
-        const kgs = e.unit === 'kg' && mine.length ? kgTxt(mine[0].kg) + ' kg' : 'lichaam';
+        const kgs = e.unit === 'kg' && mine.length ? kgTxt(mine[0].kg) + ' kg' : e.unit === 'sec' ? 'seconden' : 'lichaam';
         rows += '<div class="col" style="gap:8px"><div class="between" style="font-weight:600"><div>' + e.name + '</div><div class="muted small">' + kgs + '</div></div><div class="setboxes">' + boxes + '</div></div>';
       });
     });
-    const nb = DAYMAP[active.day].blocks[prevStep.bi + 1];
+    const nb = cur().blocks[prevStep.bi + 1];
     let nextHtml = '';
     if (nb) {
       let nr = '';
       nb.groups.forEach(function (g) { nr += '<div class="between" style="font-size:14px"><div>' + g.items.map(function (x) { return x.code + ' ' + EXERCISES[x.ex].name; }).join(' + ') + '</div></div>'; });
       nextHtml = '<div class="col"><div class="eyebrow">Hierna · ' + nb.name + '</div><div class="card col">' + nr + '</div></div>';
     }
-    return '<div class="between small muted"><div>' + DAYMAP[active.day].label + ' · ' + mmss((Date.now() - active.startedAt) / 1000) + ' bezig</div><div>Blok ' + (prevStep.bi + 1) + ' van ' + DAYMAP[active.day].blocks.length + '</div></div>' +
-      '<div class="col"><div style="width:56px;height:56px;border-radius:28px;background:var(--accent);display:flex;align-items:center;justify-content:center">' + ICON.bigcheck + '</div><h1>' + b.name.split(' · ')[0] + ' klaar</h1><div class="muted">' + (ups ? ups + ' set' + (ups > 1 ? 's' : '') + ' beter dan vorige keer' : 'Goed bezig') + '</div></div>' +
+    return '<div class="between small muted"><div>' + cur().label + ' · ' + mmss((Date.now() - active.startedAt) / 1000) + ' bezig</div><div>Blok ' + (prevStep.bi + 1) + ' van ' + cur().blocks.length + '</div></div>' +
+      '<div class="col"><div style="width:56px;height:56px;border-radius:28px;background:var(--accent);display:flex;align-items:center;justify-content:center">' + ICON.bigcheck + '</div><h1>' + b.name.split(' · ')[0] + ' ' + T('blockDone', 'klaar') + '</h1><div class="muted">' + (ups ? ups + ' set' + (ups > 1 ? 's' : '') + ' beter dan vorige keer' : 'Goed bezig') + '</div></div>' +
       '<div class="card col" style="gap:14px">' + rows + '<div class="xs muted">Groen = beter dan vorige keer</div></div>' +
       nextHtml + '<div class="grow"></div>' +
       '<button class="btn" data-a="nextblock">Start ' + nb.name.split(' · ')[0].replace('Blok', 'blok') + '</button>';
   }
 
   function viewDone() {
-    const d = DAYMAP[active.day]; const mins = Math.round((Date.now() - active.startedAt) / 60000);
+    const d = cur(); const mins = Math.round((Date.now() - active.startedAt) / 60000);
     // per oefening: beste set vergelijken met vorige sessie
     const exIds = []; active.sets.forEach(function (s) { if (exIds.indexOf(s.ex) < 0) exIds.push(s.ex); });
     let recs = ''; let nRec = 0;
@@ -370,7 +403,7 @@
     const feel = active.feel || '';
     const fb = ['Licht', 'Goed', 'Zwaar'].map(function (f) { return '<button class="' + (feel === f ? 'on' : '') + '" data-a="feel" data-f="' + f + '">' + f + '</button>'; }).join('');
     const totalSets = active.steps.length;
-    return '<div class="col" style="gap:4px;margin-top:20px"><div class="eyebrow">' + d.label + ' · ' + d.name + ' · week ' + active.week + '</div><h1 style="font-size:44px">Training klaar</h1></div>' +
+    return '<div class="col" style="gap:4px;margin-top:20px"><div class="eyebrow">' + d.label + ' · ' + d.name + ' · week ' + active.week + '</div><h1 style="font-size:44px">' + T('done', 'Training klaar') + '</h1></div>' +
       '<div class="grid3"><div class="stat"><div class="num">' + mins + '</div><div class="xs muted">minuten</div></div><div class="stat"><div class="num">' + active.sets.length + '</div><div class="xs muted">van ' + totalSets + ' sets</div></div><div class="stat"><div class="num" style="color:var(--accent)">' + nRec + '</div><div class="xs muted">records</div></div></div>' +
       (recs ? '<div class="col"><div class="eyebrow">Vooruitgang</div><div class="card list" style="padding:4px 16px">' + recs + '</div></div>' : '') +
       '<div class="col"><div class="eyebrow">Hoe zwaar was het?</div><div class="seg">' + fb + '</div></div>' +
@@ -390,7 +423,7 @@
   function viewOverview() {
     const year = view.year || new Date().getFullYear(); const today = iso(new Date());
     const byDate = {}; log.forEach(function (s) { byDate[s.date] = s.day; });
-    const cnt = { d1: 0, d2: 0, d3: 0 };
+    const cnt = { d1: 0, d2: 0, d3: 0, x: 0 };
     let months = '';
     for (let m = 0; m < 12; m++) {
       const first = new Date(year, m, 1); const n = new Date(year, m + 1, 0).getDate(); const off = (first.getDay() + 6) % 7;
@@ -403,13 +436,138 @@
       }
       months += '<div><div class="xs muted" style="font-weight:600">' + NL_MON[m] + '</div><div class="mgrid">' + cells + '</div></div>';
     }
-    const total = cnt.d1 + cnt.d2 + cnt.d3;
+    const total = cnt.d1 + cnt.d2 + cnt.d3 + cnt.x;
     return '<div class="between"><button class="iconbtn" data-a="home" aria-label="Terug">' + ICON.back + '</button>' +
       '<div class="row" style="gap:0"><button class="iconbtn" style="background:none" data-a="year" data-d="-1" aria-label="Vorig jaar">' + ICON.back + '</button><div class="num" style="font-size:24px">' + year + '</div><button class="iconbtn" style="background:none;transform:scaleX(-1)" data-a="year" data-d="1" aria-label="Volgend jaar">' + ICON.back + '</button></div><div style="width:44px"></div></div>' +
-      '<h1>Overzicht</h1>' +
+      '<h1>' + T('overview', 'Overzicht') + '</h1>' +
       '<div class="grid4"><div class="stat"><div class="num">' + total + '</div><div class="xs muted">totaal</div></div><div class="stat"><div class="num" style="color:var(--accent)">' + cnt.d1 + '</div><div class="xs muted">Dag 1</div></div><div class="stat"><div class="num" style="color:var(--d2)">' + cnt.d2 + '</div><div class="xs muted">Dag 2</div></div><div class="stat"><div class="num" style="color:var(--d3)">' + cnt.d3 + '</div><div class="xs muted">Dag 3</div></div></div>' +
       '<div class="months">' + months + '</div><div class="grow"></div>' +
-      '<div class="legend"><div><span style="background:var(--accent)"></span>Dag 1</div><div><span style="background:var(--d2)"></span>Dag 2</div><div><span style="background:var(--d3)"></span>Dag 3</div><div><span style="background:var(--s2)"></span>Rust</div></div>';
+      '<div class="legend"><div><span style="background:var(--accent)"></span>Dag 1</div><div><span style="background:var(--d2)"></span>Dag 2</div><div><span style="background:var(--d3)"></span>Dag 3</div><div><span style="background:#B39DFF"></span>Extra</div></div>';
+  }
+
+  // ---------- niet thuis ----------
+  function viewAway() {
+    const o = view.opts;
+    const mins = [20, 30, 45].map(function (m) { return '<button class="' + (o.min === m ? 'on' : '') + '" data-a="awaymin" data-m="' + m + '">' + m + ' min</button>'; }).join('');
+    const items = AWAY_ITEMS.map(function (it) {
+      const on = o.items.indexOf(it.id) >= 0;
+      return '<button class="check' + (on ? ' done' : '') + '" data-a="awayitem" data-id="' + it.id + '" style="min-height:52px"><span class="box">' + (on ? ICON.check : '') + '</span><span class="grow" style="font-size:14px">' + it.label + '</span></button>';
+    }).join('');
+    const nd = DAYMAP[nextDay()];
+    const rep = [['next', nd.label + ' · ' + nd.name, 'Je volgende training, telt mee in je week'], ['extra', 'Extra training', 'Hele lichaam, je schema blijft zoals het is']].map(function (r) {
+      const on = o.replace === r[0];
+      return '<button class="check' + (on ? ' done' : '') + '" data-a="awayrep" data-r="' + r[0] + '" style="min-height:58px"><span class="box" style="border-radius:13px">' + (on ? ICON.check : '') + '</span><span class="col" style="gap:2px;text-align:left"><span style="font-size:14px;font-weight:600">' + r[1] + '</span><span class="xs muted">' + r[2] + '</span></span></button>';
+    }).join('');
+    return '<button class="iconbtn" data-a="home" aria-label="Terug">' + ICON.back + '</button>' +
+      '<div class="col" style="gap:4px"><h1>' + T('away', 'Niet thuis, wel tijd') + '</h1><div class="muted">Drie vragen, dan staat je training klaar.</div></div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:600;font-size:14px">Hoeveel tijd heb je?</div><div class="seg">' + mins + '</div></div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:600;font-size:14px">Wat is er in de buurt?</div><div class="grid2" style="gap:8px">' + items + '</div><div class="xs muted">Niets aangevinkt? Dan alleen oefeningen op de vloer.</div></div>' +
+      '<div class="col" style="gap:8px"><div style="font-weight:600;font-size:14px">Welke training vervang je?</div>' + rep + '</div>' +
+      '<div class="grow"></div><button class="btn" data-a="awayplan">Maak mijn training</button>';
+  }
+  function genAway(o) {
+    const have = o.items; const seed = o.seed || 0;
+    function avail(pool) { return pool.filter(function (id) { const n = EXERCISES[id].needs; return !n || have.indexOf(n) >= 0; }); }
+    function rot(arr) { if (!arr.length) return arr; const k = seed % arr.length; return arr.slice(k).concat(arr.slice(0, k)); }
+    const push = rot(avail(AWAY.push)); const pull = rot(avail(AWAY.pull)); const legs = rot(avail(AWAY.legs)); const core = rot(avail(AWAY.core));
+    function pk(arr, i) { return arr[i % arr.length]; }
+    const target = o.replace === 'next' ? nextDay() : 'x';
+    const R = { A: { 20: 3, 30: 4, 45: 4 }[o.min], B: { 20: 0, 30: 3, 45: 3 }[o.min], C: { 20: 2, 30: 2, 45: 3 }[o.min] };
+    const withLegs = target === 'd3' || target === 'x' || o.min === 45;
+    function reps(id, def) { const e = EXERCISES[id]; return e.unit === 'sec' ? '45-60' : def; }
+    const blocks = []; const L = ['A', 'B', 'C', 'D'];
+    function add(name, rest, rounds, ids, def) {
+      if (!rounds || !ids.length) return;
+      const letter = L[blocks.length]; const uniq = ids.filter(function (x, i) { return ids.indexOf(x) === i; });
+      blocks.push({ name: 'Blok ' + letter + ' · ' + name, groups: [{ rest: rest, items: uniq.map(function (id, i) { return { ex: id, code: letter + (i + 1), sets: rounds, reps: reps(id, def), kg: 0 }; }) }] });
+    }
+    if (target === 'd3') add('Benen', 45, 3, legs.slice(0, 2), '15-20');
+    add('Kracht', 60, R.A, [pk(push, 0), pk(pull, 0)], '8-12');
+    add('Hypertrofie', 45, R.B, [pk(push, 1), pk(pull, 1)], '10-15');
+    if (withLegs && target !== 'd3') add('Benen', 45, 3, legs.slice(0, 2), '15-20');
+    add('Finisher', 30, R.C, [pk(core, 0), pk(core, 1)], '15-20');
+    const tdef = DAYMAP[target];
+    return { id: 'away', logDay: target, label: target === 'x' ? 'Extra' : tdef.label, name: target === 'x' ? 'Onderweg' : tdef.name + ' onderweg', focus: 'Zonder materiaal', minutes: o.min, blocks: blocks };
+  }
+  function viewAwayPlan() {
+    const plan = genAway(view.opts);
+    let blocks = '';
+    plan.blocks.forEach(function (b) {
+      const g = b.groups[0];
+      let rows = '';
+      g.items.forEach(function (x) {
+        const e = EXERCISES[x.ex];
+        rows += '<div class="row" style="gap:12px"><img src="img/' + e.img + '.jpg" alt="" style="width:84px;height:56px;object-fit:cover;border-radius:10px"><div class="col" style="gap:2px"><div style="font-size:14px;font-weight:600"><span class="muted">' + x.code + '</span> ' + e.name + '</div><div class="xs muted">' + x.sets + ' × ' + unitTxt(e, x.reps) + (e.perSide ? ' per kant' : '') + '</div></div></div>';
+      });
+      blocks += '<div class="card col"><div class="between"><div style="font-weight:600">' + b.name + '</div><div class="xs" style="color:var(--accent);font-weight:600">' + (g.items.length > 1 ? 'Superset · ' : '') + g.rest + ' s</div></div>' + rows + '</div>';
+    });
+    const warn = plan.blocks.some(function (b) { return b.groups[0].items.some(function (x) { return x.ex === 'tablerow' || x.ex === 'doorrow'; }); });
+    return '<div class="between"><button class="iconbtn" data-a="away" aria-label="Terug">' + ICON.back + '</button><button class="btn sec" style="width:auto;height:44px;padding:0 16px;font-size:14px" data-a="awaymix">Andere mix</button></div>' +
+      '<div class="col" style="gap:4px"><div class="eyebrow">' + (plan.logDay === 'x' ? 'Extra training' : 'Vervangt ' + plan.label + ' · ' + DAYMAP[plan.logDay].name) + '</div><h1>Training zonder materiaal</h1><div class="muted">ca. ' + plan.minutes + ' min</div></div>' +
+      '<div class="col">' + blocks + '</div>' +
+      (warn ? '<div class="card small" style="border:1px solid var(--d3)">Let op: test eerst of de tafel niet kantelt. Trek aan een deur alleen aan de kant waar hij dichtgaat.</div>' : '') +
+      '<div class="small muted">Zonder gewicht: 3 tellen omlaag en ga dichter naar falen. Je logt alleen reps.</div>' +
+      '<div class="grow"></div><button class="btn" data-a="awaystart">Start training</button>';
+  }
+
+  // ---------- nieuw blok ----------
+  let draft = null; let lastNB = { tab: 'd1', mode: 'new' };
+  function viewNewBlock() {
+    const tab = view.tab || 'd1'; const isNew = view.mode !== 'edit';
+    const tabs = DAYS.map(function (d) {
+      const n = Object.keys(SWAPS[d.id] || {}).length;
+      return '<button class="' + (tab === d.id ? 'on' : '') + '" data-a="nbtab" data-id="' + d.id + '">' + d.label + (isNew && n ? ' · ' + n : '') + '</button>';
+    }).join('');
+    const base = DAYMAP[tab]; let rows = '';
+    base.blocks.forEach(function (b) { b.groups.forEach(function (g) { g.items.forEach(function (x) {
+      const key = tab + '.' + x.code; const curEx = (settings.overrides || {})[key] || x.ex; const chosen = draft[key] || curEx;
+      const changed = chosen !== curEx;
+      const sugg = isNew && SWAPS[tab] && SWAPS[tab][x.code];
+      let right = '<button class="small" style="color:var(--accent);font-weight:600;padding:12px 4px" data-a="replace" data-key="' + key + '">Vervang</button>';
+      if (sugg || changed) {
+        right = '<div class="toggle"><button class="' + (changed ? 'on' : '') + '" data-a="nbswap" data-key="' + key + '" data-ex="' + (changed ? chosen : sugg) + '">Wissel</button><button class="' + (!changed ? 'on2' : '') + '" data-a="nbkeep" data-key="' + key + '">Houd</button></div>';
+      }
+      const label = changed ? '<div class="xs muted" style="text-decoration:line-through">' + EXERCISES[curEx].name + '</div><button style="font-size:15px;font-weight:600;text-align:left" data-a="replace" data-key="' + key + '">' + EXERCISES[chosen].name + '</button>'
+        : (sugg ? '<div style="font-size:15px">' + EXERCISES[curEx].name + '</div><div class="xs muted">Voorstel: ' + EXERCISES[sugg].name + '</div>' : '<div style="font-size:15px">' + EXERCISES[curEx].name + '</div>');
+      rows += '<div><div class="row" style="gap:10px;min-width:0"><div class="xs" style="width:24px;font-weight:700;color:' + (changed ? 'var(--accent)' : 'var(--muted)') + '">' + x.code + '</div><div class="col" style="gap:2px;min-width:0">' + label + '</div></div>' + right + '</div>';
+    }); }); });
+    return '<button class="iconbtn" data-a="' + (isNew ? 'home' : 'backup') + '" aria-label="Terug">' + ICON.back + '</button>' +
+      '<div class="col" style="gap:4px"><h1>' + (isNew ? 'Blok ' + ((settings.blockNo || 1) + 1) + ': nieuwe oefeningen' : 'Oefeningen aanpassen') + '</h1><div class="muted">Kies per oefening: wisselen of houden.</div></div>' +
+      '<div class="seg">' + tabs + '</div>' +
+      '<div class="card list" style="padding:4px 14px">' + rows + '</div>' +
+      '<div class="grow"></div>' +
+      '<button class="btn" data-a="nbsave">' + (isNew ? 'Start blok ' + ((settings.blockNo || 1) + 1) : 'Opslaan') + '</button>' +
+      (isNew ? '<div class="xs muted" style="text-align:center;margin-top:-8px">Week 1 begint weer licht, met 2 reps in reserve</div>' : '');
+  }
+  function viewReplace() {
+    const key = view.key; const parts = key.split('.'); const day = parts[0]; const code = parts[1];
+    let item = null; DAYMAP[day].blocks.forEach(function (b) { b.groups.forEach(function (g) { g.items.forEach(function (x) { if (x.code === code) item = x; }); }); });
+    const curEx = draft[key] || (settings.overrides || {})[key] || item.ex; const e = EXERCISES[curEx];
+    const inDay = {}; DAYMAP[day].blocks.forEach(function (b) { b.groups.forEach(function (g) { g.items.forEach(function (x) { inDay[draft[day + '.' + x.code] || (settings.overrides || {})[day + '.' + x.code] || x.ex] = 1; }); }); });
+    const sugg = SWAPS[day] && SWAPS[day][code];
+    const opts = Object.keys(EXERCISES).filter(function (id) {
+      const x = EXERCISES[id]; const awayOnly = ['superman', 'bwsquat', 'climbers', 'bwrussian', 'closepush'].indexOf(id) >= 0; return x.group === e.group && !x.needs && !awayOnly && x.unit !== 'sec' && (id === item.ex || !inDay[id] || id === curEx) && (x.unit === 'kg') === (EXERCISES[item.ex].unit === 'kg');
+    });
+    opts.sort(function (a, b) { return (b === sugg) - (a === sugg); });
+    const list = opts.map(function (id) {
+      const x = EXERCISES[id]; const on = id === curEx;
+      return '<button class="card row" data-a="pick" data-ex="' + id + '" style="width:100%;text-align:left;padding:10px;gap:12px;border:2px solid ' + (on ? 'var(--accent)' : 'var(--s1)') + '"><img src="img/' + x.img + '.jpg" alt="" style="width:96px;height:64px;object-fit:cover;border-radius:10px"><div class="col" style="gap:3px"><div style="font-weight:600">' + x.name + '</div><div class="xs muted">' + x.muscles + '</div>' + (id === sugg ? '<div class="xs" style="font-weight:700;color:var(--accent)">Voorstel</div>' : id === item.ex ? '<div class="xs muted">Origineel</div>' : '') + '</div></button>';
+    }).join('');
+    return '<button class="iconbtn" data-a="newblockback" aria-label="Terug">' + ICON.back + '</button>' +
+      '<div class="col" style="gap:4px"><div class="eyebrow">' + DAYMAP[day].label + ' · ' + code + '</div><h1>Vervang ' + EXERCISES[item.ex].name + '</h1></div>' +
+      '<div class="row" style="flex-wrap:wrap;gap:8px"><span class="pill">' + e.group.charAt(0).toUpperCase() + e.group.slice(1) + '</span><span class="pill">Past bij jouw materiaal</span><span class="pill">' + unitTxt(EXERCISES[item.ex], item.reps) + '</span></div>' +
+      '<div class="col">' + list + '</div>';
+  }
+  function saveDraft(isNew) {
+    const ov = Object.assign({}, settings.overrides || {});
+    Object.keys(draft).forEach(function (k) {
+      const parts = k.split('.'); let orig = null;
+      DAYMAP[parts[0]].blocks.forEach(function (b) { b.groups.forEach(function (g) { g.items.forEach(function (x) { if (x.code === parts[1]) orig = x.ex; }); }); });
+      if (draft[k] === orig) delete ov[k]; else ov[k] = draft[k];
+    });
+    settings.overrides = ov;
+    if (isNew) { settings.blockStart = iso(new Date()); settings.blockNo = (settings.blockNo || 1) + 1; settings.snoozeUntil = null; }
+    save(K.settings, settings); draft = null;
   }
 
   // ---------- back-up ----------
@@ -420,7 +578,9 @@
       '<div class="card col"><div style="font-weight:600">Je logboek</div><div class="small muted">' + log.length + ' trainingen opgeslagen op deze telefoon. Maak af en toe een back-up, bijvoorbeeld naar iCloud Drive.</div>' +
       '<button class="btn sec" data-a="export">Back-up maken</button>' +
       '<label class="btn sec" style="line-height:52px;cursor:pointer">Back-up terugzetten<input type="file" accept="application/json,.json" data-a="import" style="display:none"></label></div>' +
-      '<div class="card col"><div style="font-weight:600">Blok</div><div class="small muted">Gestart op ' + (settings.blockStart || 'nog niet gestart') + '. Nu week ' + wi.week + ' van 4, ' + wi.weeksTotal + ' weken in totaal.</div>' +
+      '<div class="card col"><div style="font-weight:600">Thema</div><div class="seg" style="grid-template-columns:repeat(2,1fr)"><button class="' + (!gold() ? 'on' : '') + '" data-a="theme" data-t="standaard">Standaard</button><button class="' + (gold() ? 'on' : '') + '" data-a="theme" data-t="golden">Golden Era</button></div></div>' +
+      '<div class="card col"><div style="font-weight:600">Schema</div><div class="small muted">Wissel zelf oefeningen, bijvoorbeeld als je nieuwe gewichten koopt.</div><button class="btn sec" data-a="editex">Oefeningen aanpassen</button></div>' +
+      '<div class="card col"><div style="font-weight:600">Blok</div><div class="small muted">Gestart op ' + (settings.blockStart || 'nog niet gestart') + '. Blok ' + (settings.blockNo || 1) + ', nu week ' + wi.week + ' van 4, ' + wi.weeksTotal + ' van 16 weken.</div>' +
       '<button class="btn sec" data-a="resetweek">Opnieuw beginnen bij week 1</button></div>' +
       '<div class="grow"></div><div class="xs muted" style="text-align:center">Plaatjes: Free Exercise DB (public domain)</div>';
   }
@@ -466,7 +626,12 @@
     else if (view.name === 'day') html = viewDay();
     else if (view.name === 'overview') html = viewOverview();
     else if (view.name === 'backup') html = viewBackup();
+    else if (view.name === 'away') html = viewAway();
+    else if (view.name === 'awayplan') html = viewAwayPlan();
+    else if (view.name === 'newblock' && draft) html = viewNewBlock();
+    else if (view.name === 'replace' && draft) html = viewReplace();
     else { view = { name: 'home' }; html = viewHome(); }
+    document.body.className = gold() ? 'golden' : '';
     app.innerHTML = html;
     if (view.name === 'workout' && active && active.phase === 'rest') timer = setInterval(tick, 250);
   }
@@ -505,7 +670,7 @@
 
   function finish(keepPartial) {
     if (active.sets.length) {
-      log.push({ id: active.startedAt, day: active.day, date: iso(new Date(active.startedAt)), start: active.startedAt, end: Date.now(), week: active.week, deload: active.deload, feel: active.feel || null, sets: active.sets.map(function (s) { return { ex: s.ex, set: s.set, reps: s.reps, kg: s.kg }; }) });
+      log.push({ id: active.startedAt, day: active.logDay || active.day, away: !!active.custom, date: iso(new Date(active.startedAt)), start: active.startedAt, end: Date.now(), week: active.week, deload: active.deload, feel: active.feel || null, sets: active.sets.map(function (s) { return { ex: s.ex, set: s.set, reps: s.reps, kg: s.kg }; }) });
       log.sort(function (a, b) { return a.start - b.start; });
       saveLog();
     }
@@ -534,7 +699,7 @@
       case 'year': view.year = (view.year || new Date().getFullYear()) + (+el.dataset.d); render(); break;
       case 'warm': { const i = +el.dataset.i; const p = active.warm.indexOf(i); if (p >= 0) active.warm.splice(p, 1); else active.warm.push(i); saveActive(); render(); break; }
       case 'warmdone': unlockAudio(); active.phase = 'set'; saveActive(); render(); window.scrollTo(0, 0); break;
-      case 'reps': active.val.reps = Math.max(0, active.val.reps + (+el.dataset.d)); saveActive(); render(); break;
+      case 'reps': { const st = EXERCISES[itemOf(active.steps[active.idx]).ex].unit === 'sec' ? 5 : 1; active.val.reps = Math.max(0, active.val.reps + st * (+el.dataset.d)); saveActive(); render(); break; }
       case 'kg': stepKg(+el.dataset.d); saveActive(); render(); break;
       case 'setdone': unlockAudio(); setDone(); break;
       case 'plus15': active.restEnd += 15000; active.restTotal += 15; saveActive(); render(); break;
@@ -554,6 +719,26 @@
       case 'resetweek':
         sheet('<h2>Opnieuw bij week 1?</h2><div class="muted">Je logboek blijft staan. Alleen de weektelling begint vandaag opnieuw.</div><button class="btn" data-a="resetyes">Ja, week 1</button><button class="btn ghost" data-a="closesheet">Annuleren</button>');
         break;
+      case 'away': go({ name: 'away', opts: settings.awayOpts || { min: 30, items: ['stoel', 'tafel', 'rugzak'], replace: 'next', seed: 0 } }); break;
+      case 'awaymin': view.opts.min = +el.dataset.m; render(); break;
+      case 'awayitem': { const i = view.opts.items.indexOf(el.dataset.id); if (i >= 0) view.opts.items.splice(i, 1); else view.opts.items.push(el.dataset.id); render(); break; }
+      case 'awayrep': view.opts.replace = el.dataset.r; render(); break;
+      case 'awayplan': settings.awayOpts = { min: view.opts.min, items: view.opts.items.slice(), replace: view.opts.replace, seed: 0 }; save(K.settings, settings); go({ name: 'awayplan', opts: Object.assign({}, view.opts, { seed: 0 }) }); break;
+      case 'awaymix': view.opts.seed = (view.opts.seed || 0) + 1; render(); break;
+      case 'awaystart':
+        if (active) { sheet('<h2>Er loopt al een training</h2><div class="muted">Ga daar eerst mee verder, of stop hem.</div><button class="btn" data-a="resume">Verder met training</button><button class="btn ghost" data-a="closesheet">Annuleren</button>'); break; }
+        { const plan = genAway(view.opts); startWorkout(plan.logDay === 'x' ? 'x' : plan.logDay, plan); } break;
+      case 'snooze': { const d = new Date(); d.setDate(d.getDate() + 28); settings.snoozeUntil = iso(d); save(K.settings, settings); render(); break; }
+      case 'newblock': draft = {}; Object.keys(SWAPS).forEach(function (day) { Object.keys(SWAPS[day]).forEach(function (code) { draft[day + '.' + code] = SWAPS[day][code]; }); }); go({ name: 'newblock', tab: 'd1', mode: 'new' }); break;
+      case 'editex': draft = {}; go({ name: 'newblock', tab: 'd1', mode: 'edit' }); break;
+      case 'nbtab': view.tab = el.dataset.id; render(); break;
+      case 'nbswap': draft[el.dataset.key] = el.dataset.ex; render(); break;
+      case 'nbkeep': delete draft[el.dataset.key]; { const k = el.dataset.key; const ov = settings.overrides || {}; if (ov[k]) { const parts = k.split('.'); DAYMAP[parts[0]].blocks.forEach(function (b) { b.groups.forEach(function (g) { g.items.forEach(function (x) { if (x.code === parts[1]) draft[k] = ov[k]; }); }); }); } } render(); break;
+      case 'replace': lastNB = { tab: view.tab, mode: view.mode }; go({ name: 'replace', key: el.dataset.key }); break;
+      case 'pick': draft[view.key] = el.dataset.ex; go({ name: 'newblock', tab: lastNB.tab, mode: lastNB.mode }); break;
+      case 'newblockback': go({ name: 'newblock', tab: lastNB.tab, mode: lastNB.mode }); break;
+      case 'nbsave': { const isNew = view.mode !== 'edit'; saveDraft(isNew); go({ name: isNew ? 'home' : 'backup' }); if (isNew) sheet('<h2>Blok ' + settings.blockNo + ' gestart</h2><div class="muted">Je nieuwe oefeningen staan klaar. Week 1 begint vandaag.</div><button class="btn" data-a="closesheet">Top</button>'); break; }
+      case 'theme': settings.theme = el.dataset.t; save(K.settings, settings); render(); break;
       case 'resetyes': settings.blockStart = iso(new Date()); save(K.settings, settings); closeSheet(); render(); break;
     }
     if (a === 'resume') closeSheet();

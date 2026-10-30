@@ -89,3 +89,48 @@ h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 26px; 
 .setboxes div { background: var(--s2); border-radius: 10px; padding: 8px 0; text-align: center; font-family: var(--display); font-weight: 700; font-size: 22px; }
 .setboxes .up { color: var(--accent); }
 a { color: var(--accent); }
+.big.main { background: var(--accent); color: #111315; }
+.tile { text-align: left; background: var(--s1); border-radius: 18px; padding: 14px; min-height: 104px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; }
+.tile .t { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.05; }
+.toggle { display: flex; background: var(--s2); border-radius: 10px; padding: 3px; flex-shrink: 0; }
+.toggle button { padding: 0 10px; height: 38px; border-radius: 8px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.toggle .on { background: var(--accent); color: #111315; }
+.toggle .on2 { background: var(--text); color: #111315; }
+.btn .sub { font-size: 11px; font-weight: 500; color: var(--muted); font-family: Inter, sans-serif; text-transform: none; letter-spacing: 0; margin-top: -14px; line-height: 1; }
+.nextlbl { color: var(--muted); }
+.redtag { background: #D7263D; color: #FFF6E0; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 4px 8px; }
+
+/* ---------- Golden Era-thema ---------- */
+body.golden {
+  --bg: #0B0B0C; --s1: #17150F; --s2: #2A251A; --line: #3A3220; --text: #FFF6E0; --muted: #C9B98F; --accent: #F5B700;
+  --display: Anton, Impact, 'Arial Narrow', sans-serif;
+}
+body.golden::before { content: ''; display: block; height: calc(env(safe-area-inset-top) + 12px); background: repeating-linear-gradient(135deg, #F5B700 0 14px, #0B0B0C 14px 28px); }
+body.golden #app { padding-top: 16px; }
+body.golden h1, body.golden h2, body.golden .big .t, body.golden .tile .t, body.golden .daycard .t { font-weight: 400; text-transform: uppercase; letter-spacing: .01em; }
+body.golden h1 { font-size: 40px !important; line-height: .95; }
+body.golden .num { font-weight: 400; }
+body.golden .card, body.golden .tile, body.golden .daycard, body.golden .stat { border-radius: 6px; border: 1px solid var(--line); }
+body.golden .card.hl, body.golden .daycard.next { border: 2px solid var(--accent); }
+body.golden .btn { border-radius: 6px; font-family: var(--display); font-weight: 400; text-transform: uppercase; font-size: 26px; letter-spacing: .03em; box-shadow: 6px 6px 0 #D7263D; }
+body.golden .btn.sec, body.golden .btn.ghost { box-shadow: none; font-size: 20px; }
+body.golden .btn.ghost { font-family: Inter, sans-serif; text-transform: none; font-size: 14px; }
+body.golden .btn.sec { border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+body.golden .btn .sub { margin-top: 2px; }
+body.golden .big { border-radius: 6px; }
+body.golden .big.main { box-shadow: 6px 6px 0 #D7263D; }
+body.golden .big .t { font-size: 40px; }
+body.golden .pill { background: none; border: 1px solid var(--accent); color: var(--accent); border-radius: 0; text-transform: uppercase; font-size: 12px; letter-spacing: .06em; }
+body.golden .badge.sticker { background: #D7263D; color: #FFF6E0; border-radius: 0; font-family: var(--display); font-weight: 400; font-size: 15px; text-transform: uppercase; transform: rotate(-4deg); }
+body.golden .eyebrow, body.golden .goldtxt { color: var(--accent); letter-spacing: .14em; }
+body.golden .resttitle { font-family: var(--display); font-size: 22px; letter-spacing: .06em; }
+body.golden .nextlbl { color: #D7263D; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+body.golden .exhero, body.golden img { filter: sepia(.35) contrast(1.1); border-radius: 6px; }
+body.golden .week .d { border-radius: 0; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+body.golden .stepper { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+body.golden .stepper button { color: var(--accent); }
+body.golden .seg button { border-radius: 4px; }
+body.golden .check { border-radius: 6px; }
+body.golden .iconbtn { border-radius: 6px; border: 1px solid var(--line); }
+body.golden .sheet { border-radius: 8px 8px 0 0; }
+body.golden .week .today { border: 0; background: var(--text); }
