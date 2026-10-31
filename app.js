@@ -155,6 +155,12 @@
     return last === 'd1' ? 'd2' : 'd1';
   }
 
+  function backupAge() {
+    if (!log.length) return -1;
+    if (!settings.lastBackup) return 999;
+    return Math.round((new Date().setHours(0, 0, 0, 0) - parseIso(settings.lastBackup).getTime()) / 86400000);
+  }
+  function backupDue() { return backupAge() >= 7; }
   function newBlockDue() {
     const wi = weekInfo(); const today = iso(new Date());
     return wi.weeksTotal > 16 && !(settings.snoozeUntil && today < settings.snoozeUntil);
@@ -180,6 +186,7 @@
     return '' +
       '<div class="col" style="gap:6px;margin-top:20px"><div class="eyebrow' + (gold() ? ' goldtxt' : '') + '">' + NL_DAYS[now.getDay()] + ' ' + now.getDate() + ' ' + NL_MONTHS[now.getMonth()] + '</div><h1 style="font-size:44px">' + hello + '</h1></div>' +
       resume + nb +
+      (backupDue() && !active ? '<div class="card between"><div class="col" style="gap:2px"><div style="font-weight:600">Tijd voor je weekback-up</div><div class="xs muted">' + (backupAge() >= 999 ? 'Nog nooit een back-up gemaakt' : 'Laatste back-up ' + backupAge() + ' dagen geleden') + '</div></div><button class="btn" style="width:auto;height:44px;padding:0 16px;font-size:15px;box-shadow:none;white-space:nowrap;flex-shrink:0" data-a="backupnow">Nu maken</button></div>' : '') +
       '<div class="card col" style="gap:12px"><div class="between"><div style="font-weight:600">' + T('weekTitle', 'Deze week') + '</div><div class="small muted">' + wd.done + ' van 2-3 trainingen</div></div><div class="week">' + wd.html + '</div></div>' +
       '<div class="col" style="gap:12px">' +
         '<button class="big main" data-a="choose"><div class="col" style="gap:6px"><div class="t">' + T('start', 'Start training') + '</div><div class="small" style="font-weight:600">Volgende: ' + nd.label + ' · ' + nd.name + '</div></div>' + ICON.play + '</button>' +
@@ -313,7 +320,7 @@
     }
     const kgStepper = e.unit === 'kg' ? '<div class="col" style="gap:6px"><div class="xs muted" style="font-weight:600">' + T('weight', 'Gewicht (kg)') + '</div><div class="stepper"><button data-a="kg" data-d="-1" aria-label="Lichter">−</button><div class="v">' + kgTxt(active.val.kg) + '</div><button data-a="kg" data-d="1" aria-label="Zwaarder">+</button></div></div>' : '';
     return topbar(stepLabel(step)) + exProgress() +
-      '<img class="exhero" src="img/' + e.img + '.jpg" alt="' + e.name + ': begin- en eindpositie">' +
+      '<button class="zoomwrap" data-a="zoom" data-src="img/' + e.img + '.jpg" data-name="' + e.name + '" aria-label="Foto vergroten"><img class="exhero" src="img/' + e.img + '.jpg" alt="' + e.name + ': begin- en eindpositie"><span class="zoomhint" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></span></button>' +
       '<div class="col" style="gap:8px"><div class="row" style="align-items:baseline"><div class="num" style="font-size:20px;color:var(--accent)">' + item.code + '</div><h1 style="font-size:36px">' + e.name + '</h1></div>' +
       '<div class="row" style="flex-wrap:wrap;gap:8px">' + pills + '</div>' +
       '<div class="small muted" style="font-size:14px;line-height:1.4">' + e.cue + '</div></div>' +
@@ -351,7 +358,7 @@
       '<div class="c"><div class="num" id="clock" role="timer" aria-live="off">' + mmss(left) + '</div><div class="small muted">van ' + mmss(active.restTotal) + '</div></div></div></div>' +
       '<div class="grid2"><button class="btn sec" data-a="plus15">+15 s' + (gold() ? '<div class="sub">' + GOLD.plus + '</div>' : '') + '</button><button class="btn sec" data-a="skip">Overslaan' + (gold() ? '<div class="sub">' + GOLD.skip + '</div>' : '') + '</button></div>' +
       '<div class="grow"></div>' +
-      '<div class="card row" style="padding:12px"><img src="img/' + ne.img + '.jpg" alt="" style="width:88px;height:60px;object-fit:cover;border-radius:10px"><div class="col" style="gap:2px"><div class="xs nextlbl">' + T('next', 'Hierna') + '</div><div style="font-weight:600">' + ni.code + ' ' + ne.name + '</div><div class="small muted">Set ' + next.set + ' van ' + next.sets + ' · ' + unitTxt(ne, ni.reps) + '</div></div></div>' +
+      '<div class="card row" style="padding:12px"><button data-a="zoom" data-src="img/' + ne.img + '.jpg" data-name="' + ne.name + '" aria-label="Foto vergroten" style="flex-shrink:0"><img src="img/' + ne.img + '.jpg" alt="" style="width:88px;height:60px;object-fit:cover;border-radius:10px;display:block"></button><div class="col" style="gap:2px"><div class="xs nextlbl">' + T('next', 'Hierna') + '</div><div style="font-weight:600">' + ni.code + ' ' + ne.name + '</div><div class="small muted">Set ' + next.set + ' van ' + next.sets + ' · ' + unitTxt(ne, ni.reps) + '</div></div></div>' +
       '<div class="xs muted" style="text-align:center">Je hoort een piep als de rust voorbij is</div>';
   }
 
@@ -497,7 +504,7 @@
       let rows = '';
       g.items.forEach(function (x) {
         const e = EXERCISES[x.ex];
-        rows += '<div class="row" style="gap:12px"><img src="img/' + e.img + '.jpg" alt="" style="width:84px;height:56px;object-fit:cover;border-radius:10px"><div class="col" style="gap:2px"><div style="font-size:14px;font-weight:600"><span class="muted">' + x.code + '</span> ' + e.name + '</div><div class="xs muted">' + x.sets + ' × ' + unitTxt(e, x.reps) + (e.perSide ? ' per kant' : '') + '</div></div></div>';
+        rows += '<div class="row" style="gap:12px"><button data-a="zoom" data-src="img/' + e.img + '.jpg" data-name="' + e.name + '" aria-label="Foto vergroten" style="flex-shrink:0"><img src="img/' + e.img + '.jpg" alt="" style="width:84px;height:56px;object-fit:cover;border-radius:10px;display:block"></button><div class="col" style="gap:2px"><div style="font-size:14px;font-weight:600"><span class="muted">' + x.code + '</span> ' + e.name + '</div><div class="xs muted">' + x.sets + ' × ' + unitTxt(e, x.reps) + (e.perSide ? ' per kant' : '') + '</div></div></div>';
       });
       blocks += '<div class="card col"><div class="between"><div style="font-weight:600">' + b.name + '</div><div class="xs" style="color:var(--accent);font-weight:600">' + (g.items.length > 1 ? 'Superset · ' : '') + g.rest + ' s</div></div>' + rows + '</div>';
     });
@@ -575,7 +582,7 @@
     const wi = weekInfo();
     return '<button class="iconbtn" data-a="home" aria-label="Terug">' + ICON.back + '</button>' +
       '<h1>Back-up en instellingen</h1>' +
-      '<div class="card col"><div style="font-weight:600">Je logboek</div><div class="small muted">' + log.length + ' trainingen opgeslagen op deze telefoon. Maak af en toe een back-up, bijvoorbeeld naar iCloud Drive.</div>' +
+      '<div class="card col"><div style="font-weight:600">Je logboek</div><div class="small muted">' + log.length + ' trainingen opgeslagen op deze telefoon. ' + (settings.lastBackup ? 'Laatste back-up: ' + fmtShort(settings.lastBackup) + '.' : 'Nog geen back-up gemaakt.') + ' De app herinnert je elke week. Kies bij het delen <b>Bewaar in Bestanden</b> en dan iCloud Drive.</div>' +
       '<button class="btn sec" data-a="export">Back-up maken</button>' +
       '<label class="btn sec" style="line-height:52px;cursor:pointer">Back-up terugzetten<input type="file" accept="application/json,.json" data-a="import" style="display:none"></label></div>' +
       '<div class="card col"><div style="font-weight:600">Thema</div><div class="seg" style="grid-template-columns:repeat(2,1fr)"><button class="' + (!gold() ? 'on' : '') + '" data-a="theme" data-t="standaard">Standaard</button><button class="' + (gold() ? 'on' : '') + '" data-a="theme" data-t="golden">Golden Era</button></div></div>' +
@@ -588,8 +595,9 @@
     const data = JSON.stringify({ app: 'trainingsapp', version: 1, exported: new Date().toISOString(), log: log, settings: settings }, null, 1);
     const name = 'trainingsapp-backup-' + iso(new Date()) + '.json';
     const file = new File([data], name, { type: 'application/json' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(function () {}); return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click();
+    function done() { settings.lastBackup = iso(new Date()); save(K.settings, settings); render(); }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).then(done).catch(function () {}); return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; a.click(); done();
   }
   function importLog(input) {
     const f = input.files && input.files[0]; if (!f) return;
@@ -612,6 +620,17 @@
     const bg = document.createElement('div'); bg.className = 'sheet-bg'; bg.id = 'sheet';
     bg.innerHTML = '<div class="sheet" role="dialog" aria-modal="true">' + html + '</div>';
     bg.addEventListener('click', function (e) { if (e.target === bg) closeSheet(); });
+    document.body.appendChild(bg);
+  }
+  function zoom(src, name) {
+    closeSheet();
+    const bg = document.createElement('div'); bg.className = 'lightbox'; bg.id = 'sheet';
+    bg.setAttribute('role', 'dialog'); bg.setAttribute('aria-modal', 'true'); bg.setAttribute('aria-label', name);
+    bg.innerHTML = '<div class="lbtop"><div style="font-weight:600">' + name + '</div><button class="iconbtn" data-a="closesheet" aria-label="Sluiten">' + ICON.close + '</button></div>' +
+      '<div class="lbimg"><figure><img src="' + src + '" alt="' + name + ': stap 1" style="object-position:0% 50%"><figcaption>Stap 1</figcaption></figure>' +
+      '<figure><img src="' + src + '" alt="' + name + ': stap 2" style="object-position:100% 50%"><figcaption>Stap 2</figcaption></figure></div>' +
+      '<div class="xs muted" style="text-align:center">Tik ergens om te sluiten</div>';
+    bg.addEventListener('click', function () { closeSheet(); });
     document.body.appendChild(bg);
   }
   function closeSheet() { const s = document.getElementById('sheet'); if (s) s.remove(); }
@@ -676,6 +695,7 @@
     }
     active = null; saveActive(); localStorage.removeItem(K.active); releaseAwake();
     go({ name: 'home' });
+    if (backupDue()) sheet('<h2>Even een back-up?</h2><div class="muted">Je laatste back-up is meer dan een week oud. Kies straks <b>Bewaar in Bestanden</b> en dan iCloud Drive.</div><button class="btn" data-a="backupnow">Back-up maken</button><button class="btn ghost" data-a="closesheet">Later</button>');
   }
 
   document.addEventListener('change', function (e) {
@@ -715,6 +735,8 @@
       case 'stopsave': closeSheet(); finish(); break;
       case 'stopdiscard': closeSheet(); active.sets = []; finish(); break;
       case 'closesheet': closeSheet(); break;
+      case 'zoom': zoom(el.dataset.src, el.dataset.name); break;
+      case 'backupnow': closeSheet(); exportLog(); break;
       case 'export': exportLog(); break;
       case 'resetweek':
         sheet('<h2>Opnieuw bij week 1?</h2><div class="muted">Je logboek blijft staan. Alleen de weektelling begint vandaag opnieuw.</div><button class="btn" data-a="resetyes">Ja, week 1</button><button class="btn ghost" data-a="closesheet">Annuleren</button>');
